@@ -1,89 +1,161 @@
 <?php
-
 declare(strict_types=1);
 
 namespace NhanAZ\libRegRsp;
 
 use pocketmine\plugin\PluginBase;
-use pocketmine\resourcepacks\ResourcePack;
 use pocketmine\resourcepacks\ZippedResourcePack;
-use pocketmine\utils\Filesystem;
-use Symfony\Component\Filesystem\Path;
+use ZipArchive;
+use function array_unshift;
+use function count;
+use function file_get_contents;
+use function is_dir;
+use function is_writable;
+use function rtrim;
+use function str_replace;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function unlink;
+use const DIRECTORY_SEPARATOR;
 
-class libRegRsp {
+final class libRegRsp {
+    /**
+     * Build a resource pack ZIP from plugin resources.
+     * @param string|null $packFolder Folder under resources/ (default = plugin name)
+     * @param string|null $zipFileName Override output name (default = plugin name)
+     * @return string|null Path to the built mcpack or null on failure (plugin gets disabled on fatal issues)
+     */
+    public static function compile(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null): ?string {
+        $packFolder ??= $plugin->getName();
+        $dataFolder = rtrim($plugin->getDataFolder(), "/\\") . DIRECTORY_SEPARATOR;
 
-	private static ?ResourcePack $pack = null;
+        if (!is_dir($dataFolder)) {
+            if (!@mkdir($dataFolder, 0755, true) && !is_dir($dataFolder)) {
+                $plugin->getLogger()->critical("[libRegRsp] Failed to create data folder: {$dataFolder}");
+                $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+                return null;
+            }
+        }
+        if (!is_writable($dataFolder)) {
+            $plugin->getLogger()->critical("[libRegRsp] Data folder not writable: {$dataFolder}");
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
 
-	public static function regRsp(PluginBase $plugin): void {
-		$plugin->getLogger()->debug('Compiling resource pack');
-		$zip = new \ZipArchive();
-		$zip->open(Path::join($plugin->getDataFolder(), $plugin->getName() . '.mcpack'), \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zipPath = $dataFolder . ($zipFileName ?? $plugin->getName()) . '.mcpack';
+        @unlink($zipPath);
 
-		foreach ($plugin->getResources() as $resource) {
-			if ($resource->isFile() and str_contains($resource->getPathname(), $plugin->getName() . ' Pack')) {
-				$relativePath = Path::normalize(preg_replace("/.*[\/\\\\]{$plugin->getName()}\hPack[\/\\\\].*/U", '', $resource->getPathname()));
-				$plugin->saveResource(Path::join($plugin->getName() . ' Pack', $relativePath), false);
-				$zip->addFile(Path::join($plugin->getDataFolder(), $plugin->getName() . ' Pack', $relativePath), $relativePath);
-			}
-		}
+        $zip = new ZipArchive();
+        $openResult = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        if ($openResult !== true) {
+            $plugin->getLogger()->critical("[libRegRsp] ZipArchive::open() failed (code {$openResult}) on {$zipPath}");
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
 
-		$zip->close();
-		Filesystem::recursiveUnlink(Path::join($plugin->getDataFolder() . $plugin->getName() . ' Pack'));
-		$plugin->getLogger()->debug('Resource pack compiled');
+        $entries = [];
+        $prefixes = [rtrim($packFolder, '/\\') . '/'];
+        // Fallback for older layout "<PluginName> Pack" when no custom folder is given
+        if ($packFolder === $plugin->getName()) {
+            $prefixes[] = rtrim($plugin->getName() . ' Pack', '/\\') . '/';
+        }
 
-		$plugin->getLogger()->debug('Registering resource pack');
-		$plugin->getLogger()->debug('Resource pack compiled');
-		self::$pack = $pack = new ZippedResourcePack(Path::join($plugin->getDataFolder(), $plugin->getName() . '.mcpack'));
-		$manager = $plugin->getServer()->getResourcePackManager();
+        foreach ($plugin->getResources() as $resourceKey => $resource) {
+            $resourceKey = (string)$resourceKey;
 
-		$reflection = new \ReflectionClass($manager);
+            $matchedPrefix = null;
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($resourceKey, $prefix)) {
+                    $matchedPrefix = $prefix;
+                    break;
+                }
+            }
+            if ($matchedPrefix === null) {
+                continue;
+            }
 
-		$property = $reflection->getProperty("resourcePacks");
-		$property->setAccessible(true);
-		$currentResourcePacks = $property->getValue($manager);
-		$currentResourcePacks[] = $pack;
-		$property->setValue($manager, $currentResourcePacks);
+            $inPackPath = substr($resourceKey, strlen($matchedPrefix));
+            $content = file_get_contents($resource->getPathname());
+            if ($content === false) {
+                $plugin->getLogger()->warning("[libRegRsp] Could not read: {$resourceKey}");
+                continue;
+            }
+            $zip->addFromString($inPackPath, $content);
+            $entries[] = $inPackPath;
+        }
 
-		$property = $reflection->getProperty("uuidList");
-		$property->setAccessible(true);
-		$currentUUIDPacks = $property->getValue($manager);
-		$currentUUIDPacks[mb_strtolower($pack->getPackId())] = $pack;
-		$property->setValue($manager, $currentUUIDPacks);
+        $zip->close();
 
-		$property = $reflection->getProperty("serverForceResources");
-		$property->setAccessible(true);
-		$property->setValue($manager, true);
+        $prettyPath = str_replace('\\', '/', $zipPath);
+        if (count($entries) === 0) {
+            $plugin->getLogger()->warning("[libRegRsp] No resources found under prefixes: " . implode(', ', $prefixes));
+        } else {
+            $plugin->getLogger()->debug("[libRegRsp] ZIP entries (" . count($entries) . "):");
+            foreach ($entries as $entry) {
+                $plugin->getLogger()->debug("[libRegRsp] \u{2192} " . $entry);
+            }
+        }
+        $plugin->getLogger()->debug("[libRegRsp] Pack built \u{2192} " . $prettyPath);
 
-		$plugin->getLogger()->debug('Resource pack registered');
-	}
+        return $zipPath;
+    }
 
-	public static function unRegRsp(PluginBase $plugin): void {
-		$manager = $plugin->getServer()->getResourcePackManager();
-		$pack = self::$pack;
+    /** Register the pack on top of the stack (public API only). */
+    public static function register(PluginBase $plugin, ?string $zipPath = null, bool $forceRequired = true): void {
+        $zipPath ??= self::defaultZipPath($plugin);
+        try {
+            $pack = new ZippedResourcePack($zipPath);
+        } catch (\Throwable $e) {
+            $plugin->getLogger()->error("[libRegRsp] Failed to load pack: " . $e->getMessage());
+            return;
+        }
 
-		$reflection = new \ReflectionClass($manager);
+        $manager = $plugin->getServer()->getResourcePackManager();
+        $stack = $manager->getResourceStack();
 
-		$property = $reflection->getProperty("resourcePacks");
-		$property->setAccessible(true);
-		$currentResourcePacks = $property->getValue($manager);
-		$key = array_search($pack, $currentResourcePacks, true);
+        foreach ($stack as $key => $existing) {
+            if ($existing instanceof ZippedResourcePack &&
+                ($existing->getPackId() === $pack->getPackId() || $existing->getPath() === $pack->getPath())) {
+                unset($stack[$key]); // remove duplicates so we can reinsert on top
+            }
+        }
 
-		if ($key !== false) {
-			unset($currentResourcePacks[$key]);
-			$property->setValue($manager, $currentResourcePacks);
-		}
+        array_unshift($stack, $pack);
+        $manager->setResourceStack(array_values($stack));
+        $manager->setResourcePacksRequired($forceRequired);
 
-		$property = $reflection->getProperty("uuidList");
-		$property->setAccessible(true);
-		$currentUUIDPacks = $property->getValue($manager);
+        $plugin->getLogger()->debug("[libRegRsp] Registered pack UUID=" . $pack->getPackId());
+    }
 
-		if (isset($currentResourcePacks[mb_strtolower($pack->getPackId())])) {
-			unset($currentUUIDPacks[mb_strtolower($pack->getPackId())]);
-			$property->setValue($manager, $currentUUIDPacks);
-		}
-		$plugin->getLogger()->debug('Resource pack unregistered');
+    /** Remove our pack and delete the ZIP. */
+    public static function unregister(PluginBase $plugin, ?string $zipPath = null): void {
+        $zipPath ??= self::defaultZipPath($plugin);
+        $manager = $plugin->getServer()->getResourcePackManager();
+        $stack = $manager->getResourceStack();
 
-		unlink(Path::join($plugin->getDataFolder(), $plugin->getName() . '.mcpack'));
-		$plugin->getLogger()->debug('Resource pack file deleted');
-	}
+        foreach ($stack as $key => $pack) {
+            if ($pack instanceof ZippedResourcePack && $pack->getPath() === $zipPath) {
+                unset($stack[$key]);
+                break;
+            }
+        }
+
+        $manager->setResourceStack(array_values($stack));
+        @unlink($zipPath);
+        $plugin->getLogger()->debug("[libRegRsp] Unregistered pack.");
+    }
+
+    /** Convenience: build + register in one call. */
+    public static function compileAndRegister(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null, bool $forceRequired = true): void {
+        $zipPath = self::compile($plugin, $packFolder, $zipFileName);
+        if ($zipPath === null) {
+            return;
+        }
+        self::register($plugin, $zipPath, $forceRequired);
+    }
+
+    private static function defaultZipPath(PluginBase $plugin): string {
+        return rtrim($plugin->getDataFolder(), "/\\") . DIRECTORY_SEPARATOR . $plugin->getName() . '.mcpack';
+    }
 }

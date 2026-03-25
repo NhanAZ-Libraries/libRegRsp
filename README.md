@@ -1,28 +1,61 @@
-> **Warning**
-> This repository is no longer in active development. Please use the library https://github.com/NhanAZ/libBedrock
-
 # libRegRsp
-Resource pack register library for PocketMine plugins
-Integrate the virion itself into your plugin or you could also use it as a composer library by running the command below:
 
-`composer require NhanAZ/libregrsp`
+Resource-pack compile & register helper for PocketMine-MP (virion or composer library).
 
-## API documentation
-There's no documentation yet, but you can check out the [demo plugin](https://github.com/nhanaz-pm-pl/CustomJoinSound/) which shows how to use its API in a plugin.
+## Features
+- Build `.mcpack` directly from your plugin `resources/`.
+- Supports both layouts: default `<PluginName>/` and legacy `"<PluginName> Pack"/`.
+- Registers the pack at the top of the stack and removes duplicates (same UUID/path) first.
+- Optional `forceRequired` to require players to accept the pack.
 
-## Including in other plugins
-This library supports being included as a [virion](https://github.com/poggit/support/blob/master/virion.md).
+## Requirements
+- PocketMine-MP API 5.x
+- PHP 8.1+
 
-If you use [Poggit](https://poggit.pmmp.io) to build your plugin, you can add it to your `.poggit.yml` like so:
+## Installation
+### Composer (self-hosted plugin)
+```bash
+composer require nhanaz/libregrsp
+```
 
+### Poggit (virion)
+Add to `.poggit.yml`:
 ```yml
 projects:
   YourPlugin:
     libs:
       - src: NhanAZ/libRegRsp/libRegRsp
-        version: x.y.z
+        version: ^1.0.4
 ```
 
-# Contact
-[![Discord](https://img.shields.io/discord/986553214889517088?label=discord&color=7289DA&logo=discord)](https://discord.gg/j2X83ujT6c)\
-**You can contact me directly via Discord `NhanAZ#9115`**
+## Quick start
+```php
+use NhanAZ\libRegRsp\libRegRsp;
+
+class MyPlugin extends PluginBase {
+    protected function onEnable() : void{
+        // Resources under resources/MyPlugin/ or resources/MyPlugin Pack/
+        libRegRsp::compileAndRegister($this);
+    }
+
+    protected function onDisable() : void{
+        libRegRsp::unregister($this); // removes the .mcpack
+    }
+}
+```
+
+### API reference (concise)
+- Build only: `libRegRsp::compile($plugin, ?string $packFolder = null, ?string $zipFileName = null): ?string`
+- Register only: `libRegRsp::register($plugin, ?string $zipPath = null, bool $forceRequired = true): void`
+- Unregister + delete: `libRegRsp::unregister($plugin, ?string $zipPath = null): void`
+
+`$packFolder` defaults to plugin name; legacy `"<PluginName> Pack"/` is auto-detected when no custom folder is provided.
+
+## Troubleshooting
+- **Cannot create data folder:** check write permissions of `plugins/YourPlugin/`.
+- **Empty zip:** ensure assets are in `resources/<PluginName>/...` or `resources/<PluginName> Pack/`.
+- **Duplicate UUID:** library already evicts duplicates before insert; if it persists, other packs likely share the same UUID.
+
+## License & Contact
+- LGPL-3.0-or-later (see `LICENSE`)
+- Discord: [NhanAZ #9115](https://discord.gg/j2X83ujT6c)

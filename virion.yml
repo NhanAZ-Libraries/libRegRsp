@@ -1,6 +1,6 @@
----
+--- # libRegRsp virion metadata
 name: libRegRsp
-version: 1.0.3
+version: 1.0.4
 antigen: NhanAZ\libRegRsp
 api: [5.0.0]
 authors: ["NhanAZ", "jasonwynn10"]
