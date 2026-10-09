@@ -1,6 +1,6 @@
 # libRegRsp
 
-libRegRsp compiles a plugin's bundled resources into a Bedrock resource pack and registers it with Axolotl-PM. Version 1.0.5 targets Axolotl-PM 5.49.1 and PHP 8.1 or later.
+libRegRsp compiles a plugin's bundled resources into a Bedrock resource pack and registers it with Axolotl-PM. Version 1.0.5 declares plugin API 5.0.0 and requires PHP 8.1 or later. Broader Axolotl-PM 5.x compatibility remains unverified.
 
 ## Overview
 
@@ -13,7 +13,7 @@ The library reads assets from `resources/<PluginName>/` or the legacy `resources
 
 ## Requirements
 
-- Axolotl-PM 5.49.1 with API 5.0.0.
+- Axolotl-PM with plugin API 5.0.0. The exact development revision is recorded in `composer.lock` and the [CI workflow](.github/workflows/ci.yml).
 - PHP 8.1 or later with the `zip` extension.
 - A valid Bedrock resource pack manifest in the selected resource folder.
 - [DevTools v1.0.1](https://github.com/NhanAZ/DevTools/releases/tag/v1.0.1) for building a consumer PHAR.
@@ -64,7 +64,7 @@ For a different resource folder, pass it as the second argument to `compileAndRe
 
 ## Development and testing
 
-Run `composer install --no-scripts --no-plugins`, `composer validate --strict`, `composer phpstan` and `php -l src/NhanAZ/libRegRsp/libRegRsp.php`. CI runs the same checks against locked Axolotl-PM 5.49.1 development dependencies. DevTools builds a consumer PHAR. A clean server startup and pack lifecycle test verifies packaging. A Bedrock client is still needed to verify its presentation.
+Run `composer install --no-scripts --no-plugins`, `composer validate --strict`, `composer phpstan` and `php -l src/NhanAZ/libRegRsp/libRegRsp.php`. CI runs the same checks against locked Axolotl-PM development dependencies. DevTools builds a consumer PHAR. A clean server startup and pack lifecycle test verifies packaging. A Bedrock client is still needed to verify its presentation.
 
 For migration from 1.0.4, keep a copy of the previous consumer PHAR and pack files, upgrade the virion declaration to `^1.0.5`, then rebuild the consumer. If startup or pack loading fails, restore the previous PHAR and restart the server. Existing API method names and resource folder layouts remain supported.
 
