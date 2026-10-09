@@ -1,15 +1,45 @@
 {
-    "name": "nhanaz/libregrsp",
-    "description": "Resource pack register library for PocketMine plugins",
-    "type": "library",
-    "license": "LGPL-3.0-or-later",
-    "autoload": {
-        "classmap": ["src"]
-    },
-    "extra": {
-        "virion": {
-            "spec": "3.0",
-            "namespace-root": "NhanAZ\\libRegRsp"
-        }
+  "name": "nhanaz/libregrsp",
+  "description": "Resource pack compiler and registrar for Axolotl-PM plugins",
+  "type": "library",
+  "license": "LGPL-3.0-or-later",
+  "require": {
+    "php": "^8.1",
+    "ext-zip": "*",
+    "pocketmine/pocketmine-mp": "^5.0.0"
+  },
+  "require-dev": {
+    "axolotl-pm/pocketmine-mp": "5.49.1",
+    "phpstan/phpstan": "^2.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "NhanAZ\\libRegRsp\\": "src/NhanAZ/libRegRsp/"
     }
+  },
+  "config": {
+    "allow-plugins": false,
+    "platform": {
+      "php": "8.1.0"
+    },
+    "sort-packages": true
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/axolotl-pm/PocketMine-MP",
+      "no-api": true
+    }
+  ],
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "scripts": {
+    "phpstan": "@php vendor/bin/phpstan analyse --level=max --no-progress src"
+  },
+  "extra": {
+    "virion": {
+      "spec": "3.0",
+      "namespace-root": "NhanAZ\\libRegRsp"
+    }
+  }
 }

@@ -5,11 +5,13 @@ namespace NhanAZ\libRegRsp;
 
 use pocketmine\plugin\PluginBase;
 use pocketmine\resourcepacks\ZippedResourcePack;
+use WeakMap;
 use ZipArchive;
 use function array_unshift;
 use function count;
 use function file_get_contents;
 use function is_dir;
+use function is_file;
 use function is_writable;
 use function rtrim;
 use function str_replace;
@@ -17,9 +19,18 @@ use function str_starts_with;
 use function strlen;
 use function substr;
 use function unlink;
+use function bin2hex;
+use function random_bytes;
+use function rename;
+use function basename;
+use function strpbrk;
+use function preg_match;
 use const DIRECTORY_SEPARATOR;
 
 final class libRegRsp {
+    /** @var WeakMap<PluginBase, array<string, true>>|null */
+    private static ?WeakMap $registeredPaths = null;
+
     /**
      * Build a resource pack ZIP from plugin resources.
      * @param string|null $packFolder Folder under resources/ (default = plugin name)
@@ -28,6 +39,12 @@ final class libRegRsp {
      */
     public static function compile(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null): ?string {
         $packFolder ??= $plugin->getName();
+        $zipFileName ??= $plugin->getName();
+        if ($zipFileName === '' || $zipFileName === '.' || $zipFileName === '..' || basename($zipFileName) !== $zipFileName || strpbrk($zipFileName, '<>:"/\\|?*') !== false || preg_match('/[\x00-\x1f]/', $zipFileName) === 1) {
+            $plugin->getLogger()->critical('[libRegRsp] Invalid resource pack output name');
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
         $dataFolder = rtrim($plugin->getDataFolder(), "/\\") . DIRECTORY_SEPARATOR;
 
         if (!is_dir($dataFolder)) {
@@ -43,13 +60,13 @@ final class libRegRsp {
             return null;
         }
 
-        $zipPath = $dataFolder . ($zipFileName ?? $plugin->getName()) . '.mcpack';
-        @unlink($zipPath);
+        $zipPath = $dataFolder . $zipFileName . '.mcpack';
+        $temporaryPath = $zipPath . '.' . bin2hex(random_bytes(8)) . '.tmp';
 
         $zip = new ZipArchive();
-        $openResult = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $openResult = $zip->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         if ($openResult !== true) {
-            $plugin->getLogger()->critical("[libRegRsp] ZipArchive::open() failed (code {$openResult}) on {$zipPath}");
+            $plugin->getLogger()->critical("[libRegRsp] ZipArchive::open() failed (code {$openResult}) on {$temporaryPath}");
             $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
             return null;
         }
@@ -78,23 +95,65 @@ final class libRegRsp {
             $inPackPath = substr($resourceKey, strlen($matchedPrefix));
             $content = file_get_contents($resource->getPathname());
             if ($content === false) {
-                $plugin->getLogger()->warning("[libRegRsp] Could not read: {$resourceKey}");
-                continue;
+                $zip->close();
+                @unlink($temporaryPath);
+                $plugin->getLogger()->critical("[libRegRsp] Could not read resource: {$resourceKey}");
+                $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+                return null;
             }
-            $zip->addFromString($inPackPath, $content);
+            if (!$zip->addFromString($inPackPath, $content)) {
+                $zip->close();
+                @unlink($temporaryPath);
+                $plugin->getLogger()->critical("[libRegRsp] Could not add resource to pack: {$resourceKey}");
+                $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+                return null;
+            }
             $entries[] = $inPackPath;
         }
 
-        $zip->close();
+        if (!$zip->close() || count($entries) === 0) {
+            @unlink($temporaryPath);
+            $plugin->getLogger()->critical('[libRegRsp] Resource pack build failed or contained no resources');
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
+
+        try {
+            new ZippedResourcePack($temporaryPath);
+        } catch (\Throwable $error) {
+            @unlink($temporaryPath);
+            $plugin->getLogger()->critical('[libRegRsp] Invalid resource pack: ' . $error->getMessage());
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
+
+        $backupPath = null;
+        if (is_file($zipPath)) {
+            $backupPath = $zipPath . '.' . bin2hex(random_bytes(8)) . '.bak';
+            if (!@rename($zipPath, $backupPath)) {
+                @unlink($temporaryPath);
+                $plugin->getLogger()->critical('[libRegRsp] Could not preserve the previous resource pack');
+                $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+                return null;
+            }
+        }
+        if (!@rename($temporaryPath, $zipPath)) {
+            if ($backupPath !== null) {
+                @rename($backupPath, $zipPath);
+            }
+            @unlink($temporaryPath);
+            $plugin->getLogger()->critical('[libRegRsp] Could not publish the new resource pack');
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return null;
+        }
+        if ($backupPath !== null) {
+            @unlink($backupPath);
+        }
 
         $prettyPath = str_replace('\\', '/', $zipPath);
-        if (count($entries) === 0) {
-            $plugin->getLogger()->warning("[libRegRsp] No resources found under prefixes: " . implode(', ', $prefixes));
-        } else {
-            $plugin->getLogger()->debug("[libRegRsp] ZIP entries (" . count($entries) . "):");
-            foreach ($entries as $entry) {
-                $plugin->getLogger()->debug("[libRegRsp] \u{2192} " . $entry);
-            }
+        $plugin->getLogger()->debug("[libRegRsp] ZIP entries (" . count($entries) . "):");
+        foreach ($entries as $entry) {
+            $plugin->getLogger()->debug("[libRegRsp] \u{2192} " . $entry);
         }
         $plugin->getLogger()->debug("[libRegRsp] Pack built \u{2192} " . $prettyPath);
 
@@ -124,6 +183,10 @@ final class libRegRsp {
         array_unshift($stack, $pack);
         $manager->setResourceStack(array_values($stack));
         $manager->setResourcePacksRequired($forceRequired);
+        self::$registeredPaths ??= new WeakMap();
+        $registered = self::$registeredPaths[$plugin] ?? [];
+        $registered[$zipPath] = true;
+        self::$registeredPaths[$plugin] = $registered;
 
         $plugin->getLogger()->debug("[libRegRsp] Registered pack UUID=" . $pack->getPackId());
     }
@@ -131,6 +194,10 @@ final class libRegRsp {
     /** Remove our pack and delete the ZIP. */
     public static function unregister(PluginBase $plugin, ?string $zipPath = null): void {
         $zipPath ??= self::defaultZipPath($plugin);
+        $registered = self::$registeredPaths[$plugin] ?? [];
+        if (!isset($registered[$zipPath])) {
+            return;
+        }
         $manager = $plugin->getServer()->getResourcePackManager();
         $stack = $manager->getResourceStack();
 
@@ -143,6 +210,8 @@ final class libRegRsp {
 
         $manager->setResourceStack(array_values($stack));
         @unlink($zipPath);
+        unset($registered[$zipPath]);
+        self::$registeredPaths[$plugin] = $registered;
         $plugin->getLogger()->debug("[libRegRsp] Unregistered pack.");
     }
 

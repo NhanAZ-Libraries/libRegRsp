@@ -1,8 +1,8 @@
 --- # libRegRsp virion metadata
 name: libRegRsp
-version: 1.0.4
+version: 1.0.5
 antigen: NhanAZ\libRegRsp
 api: [5.0.0]
 authors: ["NhanAZ", "jasonwynn10"]
-description: Resource pack register library for PocketMine plugins
+description: Resource pack compiler and registrar for Axolotl-PM plugins
 ...
