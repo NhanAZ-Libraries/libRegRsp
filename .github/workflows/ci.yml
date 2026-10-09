@@ -1,4 +1,4 @@
-name: Validate
+name: Analyze and validate libRegRsp virion
 
 on:
   push:

@@ -16,7 +16,7 @@ The library reads assets from `resources/<PluginName>/` or the legacy `resources
 - Axolotl-PM with plugin API 5.0.0. The exact development revision is recorded in `composer.lock` and the [CI workflow](.github/workflows/ci.yml).
 - PHP 8.1 or later with the `zip` extension.
 - A valid Bedrock resource pack manifest in the selected resource folder.
-- [DevTools v1.0.1](https://github.com/NhanAZ/DevTools/releases/tag/v1.0.1) for building a consumer PHAR.
+- [DevTools](https://github.com/NhanAZ/DevTools) for building a consumer PHAR. The consumer workflow pins the exact builder revision.
 
 ## Installation
 
