@@ -66,7 +66,7 @@ For a different resource folder, pass it as the second argument to `compileAndRe
 
 Run `composer install --no-scripts --no-plugins`, `composer validate --strict`, `composer phpstan` and `php -l src/NhanAZ/libRegRsp/libRegRsp.php`. CI runs the same checks against locked Axolotl-PM development dependencies. DevTools builds a consumer PHAR. A clean server startup and pack lifecycle test verifies packaging. A Bedrock client is still needed to verify its presentation.
 
-For migration from 1.0.4, keep a copy of the previous consumer PHAR and pack files, upgrade the virion declaration to `^1.0.5`, then rebuild the consumer. If startup or pack loading fails, restore the previous PHAR and restart the server. Existing API method names and resource folder layouts remain supported.
+For migration from 1.0.4 or 1.0.5, preserve a copy of the previous consumer PHAR and generated pack, update the virion declaration to `^1.0.6`, then rebuild the consumer. On runtimes without the resource requirement setter, configure `force_resources` in `resource_packs/resource_packs.yml` to match the consumer's `forceRequired` value before starting the server. If startup or pack loading fails, restore the previous PHAR and restart the server. Existing API method names and resource folder layouts remain supported.
 
 ## License, credits and support
 

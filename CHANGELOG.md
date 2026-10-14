@@ -5,6 +5,7 @@
 - Keep plugin API 5.0.0 support when the server-wide `force_resources` setting already matches the requested value.
 - Use `setResourcePacksRequired()` when available and report the required startup configuration on older API builds that cannot change it at runtime.
 - Check compatibility before compiling or changing the resource stack.
+- Rebuild consumers after updating their virion constraint to `^1.0.6`.
 
 ## 1.0.5 - 2026-10-10
 
