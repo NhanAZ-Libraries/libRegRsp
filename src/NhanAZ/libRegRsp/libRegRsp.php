@@ -185,7 +185,7 @@ final class libRegRsp {
 
         array_unshift($stack, $pack);
         $manager->setResourceStack(array_values($stack));
-        if (method_exists($manager, 'setResourcePacksRequired')) {
+        if (self::supportsRuntimeForceRequirement($manager)) {
             $manager->setResourcePacksRequired($forceRequired);
         }
         self::$registeredPaths ??= new WeakMap();
@@ -235,7 +235,7 @@ final class libRegRsp {
     /** Disable the plugin before compiling or changing the stack if this API cannot apply the requested setting. */
     private static function assertForceRequiredConfigCompatible(PluginBase $plugin, bool $forceRequired): bool {
         $manager = $plugin->getServer()->getResourcePackManager();
-        if (!method_exists($manager, 'setResourcePacksRequired') && $manager->resourcePacksRequired() !== $forceRequired) {
+        if (!self::supportsRuntimeForceRequirement($manager) && $manager->resourcePacksRequired() !== $forceRequired) {
             $expected = $forceRequired ? 'true' : 'false';
             $plugin->getLogger()->error(
                 '[libRegRsp] This Axolotl-PM API cannot change force_resources after startup. ' .
@@ -245,6 +245,11 @@ final class libRegRsp {
             return false;
         }
         return true;
+    }
+
+    /** The dev dependency may expose an API absent from the consumer's older runtime. */
+    private static function supportsRuntimeForceRequirement(object $manager): bool {
+        return method_exists($manager, 'setResourcePacksRequired');
     }
 
     private static function defaultZipPath(PluginBase $plugin): string {
