@@ -162,7 +162,9 @@ final class libRegRsp {
 
     /** Register the pack on top of the stack (public API only). */
     public static function register(PluginBase $plugin, ?string $zipPath = null, bool $forceRequired = true): void {
-        self::assertForceRequiredConfigCompatible($plugin, $forceRequired);
+        if (!self::assertForceRequiredConfigCompatible($plugin, $forceRequired)) {
+            return;
+        }
         $zipPath ??= self::defaultZipPath($plugin);
         try {
             $pack = new ZippedResourcePack($zipPath);
@@ -220,7 +222,9 @@ final class libRegRsp {
 
     /** Convenience: build + register in one call. */
     public static function compileAndRegister(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null, bool $forceRequired = true): void {
-        self::assertForceRequiredConfigCompatible($plugin, $forceRequired);
+        if (!self::assertForceRequiredConfigCompatible($plugin, $forceRequired)) {
+            return;
+        }
         $zipPath = self::compile($plugin, $packFolder, $zipFileName);
         if ($zipPath === null) {
             return;
@@ -228,16 +232,19 @@ final class libRegRsp {
         self::register($plugin, $zipPath, $forceRequired);
     }
 
-    /** Fail before compiling or changing the stack if this API cannot apply the requested server-wide setting. */
-    private static function assertForceRequiredConfigCompatible(PluginBase $plugin, bool $forceRequired): void {
+    /** Disable the plugin before compiling or changing the stack if this API cannot apply the requested setting. */
+    private static function assertForceRequiredConfigCompatible(PluginBase $plugin, bool $forceRequired): bool {
         $manager = $plugin->getServer()->getResourcePackManager();
         if (!method_exists($manager, 'setResourcePacksRequired') && $manager->resourcePacksRequired() !== $forceRequired) {
             $expected = $forceRequired ? 'true' : 'false';
-            throw new \RuntimeException(
+            $plugin->getLogger()->error(
                 '[libRegRsp] This Axolotl-PM API cannot change force_resources after startup. ' .
                 "Set force_resources: $expected in resource_packs/resource_packs.yml before starting the server."
             );
+            $plugin->getServer()->getPluginManager()->disablePlugin($plugin);
+            return false;
         }
+        return true;
     }
 
     private static function defaultZipPath(PluginBase $plugin): string {
