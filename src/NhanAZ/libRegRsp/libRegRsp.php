@@ -162,6 +162,7 @@ final class libRegRsp {
 
     /** Register the pack on top of the stack (public API only). */
     public static function register(PluginBase $plugin, ?string $zipPath = null, bool $forceRequired = true): void {
+        self::assertForceRequiredConfigCompatible($plugin, $forceRequired);
         $zipPath ??= self::defaultZipPath($plugin);
         try {
             $pack = new ZippedResourcePack($zipPath);
@@ -182,7 +183,9 @@ final class libRegRsp {
 
         array_unshift($stack, $pack);
         $manager->setResourceStack(array_values($stack));
-        $manager->setResourcePacksRequired($forceRequired);
+        if (method_exists($manager, 'setResourcePacksRequired')) {
+            $manager->setResourcePacksRequired($forceRequired);
+        }
         self::$registeredPaths ??= new WeakMap();
         $registered = self::$registeredPaths[$plugin] ?? [];
         $registered[$zipPath] = true;
@@ -217,11 +220,24 @@ final class libRegRsp {
 
     /** Convenience: build + register in one call. */
     public static function compileAndRegister(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null, bool $forceRequired = true): void {
+        self::assertForceRequiredConfigCompatible($plugin, $forceRequired);
         $zipPath = self::compile($plugin, $packFolder, $zipFileName);
         if ($zipPath === null) {
             return;
         }
         self::register($plugin, $zipPath, $forceRequired);
+    }
+
+    /** Fail before compiling or changing the stack if this API cannot apply the requested server-wide setting. */
+    private static function assertForceRequiredConfigCompatible(PluginBase $plugin, bool $forceRequired): void {
+        $manager = $plugin->getServer()->getResourcePackManager();
+        if (!method_exists($manager, 'setResourcePacksRequired') && $manager->resourcePacksRequired() !== $forceRequired) {
+            $expected = $forceRequired ? 'true' : 'false';
+            throw new \RuntimeException(
+                '[libRegRsp] This Axolotl-PM API cannot change force_resources after startup. ' .
+                "Set force_resources: $expected in resource_packs/resource_packs.yml before starting the server."
+            );
+        }
     }
 
     private static function defaultZipPath(PluginBase $plugin): string {

@@ -1,6 +1,6 @@
 # libRegRsp
 
-libRegRsp compiles a plugin's bundled resources into a Bedrock resource pack and registers it with Axolotl-PM. Version 1.0.5 declares plugin API 5.0.0 and requires PHP 8.1 or later. Broader Axolotl-PM 5.x compatibility remains unverified.
+libRegRsp compiles a plugin's bundled resources into a Bedrock resource pack and registers it with Axolotl-PM. Version 1.0.6 declares plugin API 5.0.0 and requires PHP 8.1 or later. Consumer CI smoke-tests the declared API floor and one pinned Axolotl-PM release; the workflow records exact revisions. Intermediate 5.x releases are not verified.
 
 ## Overview
 
@@ -60,7 +60,7 @@ For a different resource folder, pass it as the second argument to `compileAndRe
 | `unregister(PluginBase $plugin, ?string $zipPath = null): void` | Removes a pack registered by the current process and deletes its generated file. |
 | `compileAndRegister(PluginBase $plugin, ?string $packFolder = null, ?string $zipFileName = null, bool $forceRequired = true): void` | Compiles and registers a pack. |
 
-`compile()` disables the owning plugin if the data directory is unusable, the output name is unsafe, a resource cannot be read, or the generated pack is invalid. If a previous pack file exists, a failed replacement keeps it for recovery. `register()` sets Axolotl-PM's server-wide resource pack requirement to the supplied `forceRequired` value. Coordinate that setting with other plugins that manage resource packs.
+`compile()` disables the owning plugin if the data directory is unusable, the output name is unsafe, a resource cannot be read, or the generated pack is invalid. If a previous pack file exists, a failed replacement keeps it for recovery. `register()` sets Axolotl-PM's server-wide resource pack requirement to the supplied `forceRequired` value when the runtime exposes that API. On older API builds without a runtime setter, the existing `force_resources` value in `resource_packs/resource_packs.yml` must already match `forceRequired`; otherwise libRegRsp reports the required configuration before compiling or changing the resource stack. Coordinate that server-wide setting with other plugins that manage resource packs.
 
 ## Development and testing
 
