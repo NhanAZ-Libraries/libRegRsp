@@ -8,15 +8,6 @@ Resource pack compiler and registrar for Axolotl-PM plugins
 [![Discord](https://img.shields.io/discord/986553214889517088?label=Discord&logo=discord&logoColor=white&color=5865F2)](https://discord.gg/j2X83ujT6c)
 
 
-## Overview
-
-The library reads assets from `resources/<PluginName>/` or the legacy `resources/<PluginName> Pack/` layout. It creates a `.mcpack` file in the plugin data directory and places the pack at the top of the server resource stack. A custom folder and output name are supported.
-
-- Compiles and validates a pack before replacing any existing pack file.
-- Preserves an existing pack if the new build fails.
-- Removes the current process's registered pack on `unregister()`.
-- Can require players to accept the pack through `forceRequired`.
-
 ## Requirements
 
 - Axolotl-PM with plugin API 5.0.0. The exact development revision is recorded in `composer.lock` and the [CI workflow](.github/workflows/ci.yml).
