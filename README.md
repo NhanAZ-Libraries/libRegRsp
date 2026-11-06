@@ -13,7 +13,7 @@ Resource pack compiler and registrar for Axolotl-PM plugins
 - Axolotl-PM with plugin API 5.0.0. The exact development revision is recorded in `composer.lock` and the [CI workflow](.github/workflows/ci.yml).
 - PHP 8.1 or later with the `zip` extension.
 - A valid Bedrock resource pack manifest in the selected resource folder.
-- [DevTools](https://github.com/NhanAZ/DevTools) for building a consumer PHAR. The consumer workflow pins the exact builder revision.
+- [DevTools](https://github.com/AxolotlBucketLabs/DevTools) for building a consumer PHAR. The consumer workflow pins the exact builder revision.
 
 ## Installation
 
